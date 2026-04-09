@@ -6,6 +6,7 @@
 
 #include "minidb/bplustree.hpp"
 #include "minidb/engine.hpp"
+#include "minidb/parser.hpp"
 #include "minidb/storage.hpp"
 #include "minidb/table.hpp"
 
@@ -69,6 +70,28 @@ void testPersistenceRoundTrip() {
   std::filesystem::remove(db_file);
 }
 
+void testParserCreateInsertSelect() {
+  minidb::Parser parser;
+
+  auto create_stmt = parser.parse("CREATE TABLE users;");
+  expect(create_stmt.type == minidb::StatementType::CreateTable,
+         "create table should parse");
+  expect(create_stmt.table_name == "users", "table name should parse");
+
+  auto insert_stmt = parser.parse("INSERT INTO users VALUES (42, 'alice');");
+  expect(insert_stmt.type == minidb::StatementType::Insert,
+         "insert should parse");
+  expect(insert_stmt.row.has_value(), "insert should carry row payload");
+  expect(insert_stmt.row->id == 42, "row id should parse");
+  expect(insert_stmt.row->value == "alice", "row value should parse");
+
+  auto select_stmt = parser.parse("SELECT * FROM users WHERE id = 42;");
+  expect(select_stmt.type == minidb::StatementType::Select,
+         "select should parse");
+  expect(select_stmt.where_id.has_value(), "where id should parse");
+  expect(*select_stmt.where_id == 42, "where id should match");
+}
+
 void testScaffoldHelpAndExit() {
   minidb::MiniDBEngine engine("/tmp/minidb_scaffold.db");
   std::string error;
@@ -89,6 +112,7 @@ void testScaffoldHelpAndExit() {
 int main() {
   testBPlusTreeSplitAndScan();
   testPersistenceRoundTrip();
+  testParserCreateInsertSelect();
   testScaffoldHelpAndExit();
   return 0;
 }
