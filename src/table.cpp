@@ -5,6 +5,7 @@
 namespace minidb {
 
 Table::Table() = default;
+
 Table::Table(std::string name) : name_(std::move(name)) {}
 
 const std::string& Table::name() const { return name_; }
@@ -12,10 +13,11 @@ const std::string& Table::name() const { return name_; }
 bool Table::insert(const Row& row, std::string* error) {
   if (index_.contains(row.id)) {
     if (error != nullptr) {
-      *error = "duplicate primary key";
+      *error = "duplicate primary key: " + std::to_string(row.id);
     }
     return false;
   }
+
   index_.upsert(row.id, row.value);
   return true;
 }
@@ -27,6 +29,7 @@ std::optional<Row> Table::select(Key id) const {
   if (!value.has_value()) {
     return std::nullopt;
   }
+
   return Row{id, *value};
 }
 
