@@ -107,6 +107,30 @@ void testScaffoldHelpAndExit() {
   expect(should_exit, "exit should mark should_exit");
 }
 
+void testEngineCreateInsertSelect() {
+  const auto db_file =
+      std::filesystem::temp_directory_path() / "minidb_query_executor_test.db";
+  std::filesystem::remove(db_file);
+
+  minidb::MiniDBEngine engine(db_file);
+  std::string error;
+  expect(engine.initialize(error), "engine should initialize");
+
+  bool should_exit = false;
+  auto create_result = engine.execute("CREATE TABLE users;", should_exit);
+  expect(create_result == "table created: users", "create should succeed");
+
+  auto insert_result =
+      engine.execute("INSERT INTO users VALUES (1, 'Alice');", should_exit);
+  expect(insert_result == "inserted 1 row", "insert should succeed");
+
+  auto select_result = engine.execute("SELECT * FROM users WHERE id = 1;", should_exit);
+  expect(select_result.find("1 | Alice") != std::string::npos,
+         "select should return inserted row");
+
+  std::filesystem::remove(db_file);
+}
+
 }  // namespace
 
 int main() {
@@ -114,5 +138,6 @@ int main() {
   testPersistenceRoundTrip();
   testParserCreateInsertSelect();
   testScaffoldHelpAndExit();
+  testEngineCreateInsertSelect();
   return 0;
 }
