@@ -6,8 +6,6 @@ A local database engine built in modern C++ with:
 - transaction support (`BEGIN`, `COMMIT`, `ROLLBACK`)
 - durable file persistence
 
-This project is intentionally designed to showcase systems design and low-level implementation for resume/portfolio use.
-
 ## Build
 
 ```bash
