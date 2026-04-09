@@ -14,6 +14,11 @@ class Table {
   Table();
   explicit Table(std::string name);
 
+  Table(const Table&) = delete;
+  Table& operator=(const Table&) = delete;
+  Table(Table&&) noexcept = default;
+  Table& operator=(Table&&) noexcept = default;
+
   const std::string& name() const;
 
   bool insert(const Row& row, std::string* error);
