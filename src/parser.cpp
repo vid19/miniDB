@@ -31,6 +31,9 @@ Statement Parser::parse(const std::string& input) const {
   const std::regex select_re(
       R"(^\s*SELECT\s+\*\s+FROM\s+([A-Za-z_][A-Za-z0-9_]*)\s*(WHERE\s+id\s*=\s*(-?\d+)\s*)?;?\s*$)",
       std::regex::icase);
+  const std::regex begin_re(R"(^\s*BEGIN\s*;?\s*$)", std::regex::icase);
+  const std::regex commit_re(R"(^\s*COMMIT\s*;?\s*$)", std::regex::icase);
+  const std::regex rollback_re(R"(^\s*ROLLBACK\s*;?\s*$)", std::regex::icase);
 
   std::smatch match;
 
@@ -53,6 +56,21 @@ Statement Parser::parse(const std::string& input) const {
     if (match[3].matched) {
       stmt.where_id = std::stoll(match[3].str());
     }
+    return stmt;
+  }
+
+  if (std::regex_match(input, begin_re)) {
+    stmt.type = StatementType::Begin;
+    return stmt;
+  }
+
+  if (std::regex_match(input, commit_re)) {
+    stmt.type = StatementType::Commit;
+    return stmt;
+  }
+
+  if (std::regex_match(input, rollback_re)) {
+    stmt.type = StatementType::Rollback;
     return stmt;
   }
 

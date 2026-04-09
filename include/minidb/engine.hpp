@@ -7,6 +7,7 @@
 #include "minidb/parser.hpp"
 #include "minidb/storage.hpp"
 #include "minidb/table.hpp"
+#include "minidb/transaction.hpp"
 
 namespace minidb {
 
@@ -20,11 +21,15 @@ class MiniDBEngine {
  private:
   Parser parser_;
   StorageManager storage_;
+  TransactionManager txn_;
   std::unordered_map<std::string, Table> tables_;
 
   std::string handleCreateTable(const Statement& stmt);
   std::string handleInsert(const Statement& stmt);
   std::string handleSelect(const Statement& stmt) const;
+  std::string handleBegin();
+  std::string handleCommit();
+  std::string handleRollback();
 
   std::string helpText() const;
 };
