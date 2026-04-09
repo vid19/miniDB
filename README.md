@@ -2,8 +2,6 @@
 
 A local database engine project built in modern C++.
 
-Current milestone: scaffold + CI + contribution workflow.
-
 ## Build
 
 ```bash
