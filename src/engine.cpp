@@ -1,5 +1,6 @@
 #include "minidb/engine.hpp"
 
+#include <algorithm>
 #include <sstream>
 
 namespace minidb {
@@ -28,6 +29,12 @@ std::string MiniDBEngine::execute(const std::string& sql, bool& should_exit) {
       return handleInsert(stmt);
     case StatementType::Select:
       return handleSelect(stmt);
+    case StatementType::Begin:
+      return handleBegin();
+    case StatementType::Commit:
+      return handleCommit();
+    case StatementType::Rollback:
+      return handleRollback();
     case StatementType::Help:
       return helpText();
     case StatementType::Exit:
@@ -40,6 +47,10 @@ std::string MiniDBEngine::execute(const std::string& sql, bool& should_exit) {
 }
 
 std::string MiniDBEngine::handleCreateTable(const Statement& stmt) {
+  if (txn_.active()) {
+    return "error: cannot create table inside an active transaction";
+  }
+
   if (tables_.find(stmt.table_name) != tables_.end()) {
     return "error: table already exists: " + stmt.table_name;
   }
@@ -64,8 +75,35 @@ std::string MiniDBEngine::handleInsert(const Statement& stmt) {
     return "error: invalid insert payload";
   }
 
+  const Row row = *stmt.row;
+
+  if (txn_.active()) {
+    if (table_it->second.contains(row.id)) {
+      return "error: duplicate primary key: " + std::to_string(row.id);
+    }
+
+    auto pending_it = txn_.pendingInserts().find(stmt.table_name);
+    if (pending_it != txn_.pendingInserts().end()) {
+      const auto& pending_rows = pending_it->second;
+      auto duplicate_it = std::find_if(
+          pending_rows.begin(), pending_rows.end(),
+          [row](const Row& pending_row) { return pending_row.id == row.id; });
+      if (duplicate_it != pending_rows.end()) {
+        return "error: duplicate primary key in transaction: " +
+               std::to_string(row.id);
+      }
+    }
+
+    std::string stage_error;
+    if (!txn_.stageInsert(stmt.table_name, row, stage_error)) {
+      return "error: " + stage_error;
+    }
+
+    return "queued 1 row in transaction";
+  }
+
   std::string insert_error;
-  if (!table_it->second.insert(*stmt.row, &insert_error)) {
+  if (!table_it->second.insert(row, &insert_error)) {
     return "error: " + insert_error;
   }
 
@@ -85,7 +123,20 @@ std::string MiniDBEngine::handleSelect(const Statement& stmt) const {
   }
 
   if (stmt.where_id.has_value()) {
-    auto row = table_it->second.select(*stmt.where_id);
+    const Key id = *stmt.where_id;
+
+    if (txn_.active()) {
+      auto pending_it = txn_.pendingInserts().find(stmt.table_name);
+      if (pending_it != txn_.pendingInserts().end()) {
+        for (const Row& row : pending_it->second) {
+          if (row.id == id) {
+            return std::to_string(row.id) + " | " + row.value + "\n(1 row)";
+          }
+        }
+      }
+    }
+
+    auto row = table_it->second.select(id);
     if (!row.has_value()) {
       return "(0 rows)";
     }
@@ -93,7 +144,17 @@ std::string MiniDBEngine::handleSelect(const Statement& stmt) const {
     return std::to_string(row->id) + " | " + row->value + "\n(1 row)";
   }
 
-  const auto rows = table_it->second.selectAll();
+  std::vector<Row> rows = table_it->second.selectAll();
+
+  if (txn_.active()) {
+    auto pending_it = txn_.pendingInserts().find(stmt.table_name);
+    if (pending_it != txn_.pendingInserts().end()) {
+      rows.insert(rows.end(), pending_it->second.begin(), pending_it->second.end());
+      std::sort(rows.begin(), rows.end(),
+                [](const Row& lhs, const Row& rhs) { return lhs.id < rhs.id; });
+    }
+  }
+
   if (rows.empty()) {
     return "(0 rows)";
   }
@@ -104,9 +165,57 @@ std::string MiniDBEngine::handleSelect(const Statement& stmt) const {
   for (const Row& row : rows) {
     out << row.id << " | " << row.value << "\n";
   }
-  out << "(" << rows.size() << (rows.size() == 1 ? " row)" : " rows)");
 
+  out << "(" << rows.size() << (rows.size() == 1 ? " row)" : " rows)");
   return out.str();
+}
+
+std::string MiniDBEngine::handleBegin() {
+  std::string error;
+  if (!txn_.begin(error)) {
+    return "error: " + error;
+  }
+
+  return "transaction started";
+}
+
+std::string MiniDBEngine::handleCommit() {
+  std::string commit_error;
+  auto staged = txn_.commit(commit_error);
+  if (!commit_error.empty()) {
+    return "error: " + commit_error;
+  }
+
+  for (auto& [table_name, rows] : staged) {
+    auto table_it = tables_.find(table_name);
+    if (table_it == tables_.end()) {
+      return "error: unknown table in staged transaction: " + table_name;
+    }
+
+    for (const Row& row : rows) {
+      std::string insert_error;
+      if (!table_it->second.insert(row, &insert_error)) {
+        return "error: commit failed: " + insert_error;
+      }
+    }
+  }
+
+  try {
+    storage_.save(tables_);
+  } catch (const std::exception& ex) {
+    return std::string("error: failed to persist commit: ") + ex.what();
+  }
+
+  return "transaction committed";
+}
+
+std::string MiniDBEngine::handleRollback() {
+  std::string error;
+  if (!txn_.rollback(error)) {
+    return "error: " + error;
+  }
+
+  return "transaction rolled back";
 }
 
 std::string MiniDBEngine::helpText() const {
@@ -115,6 +224,9 @@ std::string MiniDBEngine::helpText() const {
          "  INSERT INTO <name> VALUES (<id>, '<value>');\n"
          "  SELECT * FROM <name>;\n"
          "  SELECT * FROM <name> WHERE id = <id>;\n"
+         "  BEGIN;\n"
+         "  COMMIT;\n"
+         "  ROLLBACK;\n"
          "  .help\n"
          "  .exit";
 }
