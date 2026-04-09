@@ -1,6 +1,10 @@
 # miniDB (SQLite-like in C++)
 
-A local database engine project built in modern C++.
+A local database engine built in modern C++ with:
+- B+ tree indexing
+- SQL-like query parsing
+- transaction support (`BEGIN`, `COMMIT`, `ROLLBACK`)
+- durable file persistence
 
 ## Build
 
@@ -10,14 +14,42 @@ cmake --build build
 ctest --test-dir build --output-on-failure
 ```
 
-## Project Goals
+## Run
 
-- B+ tree indexing
-- SQL-like parser
-- query execution engine
-- transactions (`BEGIN`/`COMMIT`/`ROLLBACK`)
-- durable file persistence
+```bash
+./build/minidb_cli
+```
 
-## PR Workflow
+Optional custom DB file:
 
-See [`CONTRIBUTING.md`](CONTRIBUTING.md) and [`docs/ROADMAP.md`](docs/ROADMAP.md).
+```bash
+./build/minidb_cli /path/to/my.db
+```
+
+## Supported SQL-like Commands
+
+- `CREATE TABLE users;`
+- `INSERT INTO users VALUES (1, 'Alice');`
+- `SELECT * FROM users;`
+- `SELECT * FROM users WHERE id = 1;`
+- `BEGIN;`
+- `COMMIT;`
+- `ROLLBACK;`
+- `.help`
+- `.exit`
+
+## Architecture
+
+- `BPlusTree` in-memory index for row IDs.
+- `Table` wraps the index and row semantics.
+- `StorageManager` serializes and restores data from disk.
+- `Parser` turns SQL-like text into typed statements.
+- `TransactionManager` tracks staged inserts in active transactions.
+- `MiniDBEngine` coordinates parser + tables + storage + transactions.
+
+## Resume Talking Points
+
+- Implemented a custom B+ tree insert/search/scan index.
+- Designed a SQL-like parser and execution engine.
+- Added transaction semantics and persistence format.
+- Built CI checks and feature-scoped PR workflow.
