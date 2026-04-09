@@ -14,6 +14,8 @@ class StorageManager {
   void save(const std::unordered_map<std::string, Table>& tables) const;
   std::unordered_map<std::string, Table> load() const;
 
+  const std::filesystem::path& filePath() const;
+
  private:
   std::filesystem::path file_path_;
 };
