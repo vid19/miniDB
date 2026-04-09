@@ -1,9 +1,13 @@
+#include <filesystem>
 #include <stdexcept>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "minidb/bplustree.hpp"
 #include "minidb/engine.hpp"
+#include "minidb/storage.hpp"
+#include "minidb/table.hpp"
 
 namespace {
 
@@ -38,6 +42,33 @@ void testBPlusTreeSplitAndScan() {
   }
 }
 
+void testPersistenceRoundTrip() {
+  const auto db_file =
+      std::filesystem::temp_directory_path() / "minidb_persistence_test.db";
+  std::filesystem::remove(db_file);
+
+  std::unordered_map<std::string, minidb::Table> tables;
+  tables.emplace("users", minidb::Table("users"));
+
+  std::string error;
+  expect(tables.at("users").insert(minidb::Row{1, "Alice"}, &error),
+         "insert should succeed");
+  expect(tables.at("users").insert(minidb::Row{2, "Bob"}, &error),
+         "insert should succeed");
+
+  minidb::StorageManager storage(db_file);
+  storage.save(tables);
+
+  auto loaded = storage.load();
+  expect(loaded.find("users") != loaded.end(), "users table should be restored");
+
+  auto row = loaded.at("users").select(2);
+  expect(row.has_value(), "row id=2 should exist after load");
+  expect(row->value == "Bob", "restored value should match");
+
+  std::filesystem::remove(db_file);
+}
+
 void testScaffoldHelpAndExit() {
   minidb::MiniDBEngine engine("/tmp/minidb_scaffold.db");
   std::string error;
@@ -57,6 +88,7 @@ void testScaffoldHelpAndExit() {
 
 int main() {
   testBPlusTreeSplitAndScan();
+  testPersistenceRoundTrip();
   testScaffoldHelpAndExit();
   return 0;
 }
