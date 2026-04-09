@@ -1,10 +1,16 @@
 #pragma once
 
+#include <optional>
 #include <string>
+
+#include "minidb/types.hpp"
 
 namespace minidb {
 
 enum class StatementType {
+  CreateTable,
+  Insert,
+  Select,
   Help,
   Exit,
   Invalid,
@@ -12,6 +18,9 @@ enum class StatementType {
 
 struct Statement {
   StatementType type{StatementType::Invalid};
+  std::string table_name;
+  std::optional<Row> row;
+  std::optional<Key> where_id;
   std::string error;
 };
 
