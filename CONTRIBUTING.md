@@ -28,12 +28,11 @@
 - no accidental file format changes
 - docs updated when behavior changes
 
-## Suggested Feature Sequence
+## Feature Sequence
 
-1. project scaffold + CI + docs
-2. B+ tree indexing
-3. storage layer + persistence format
-4. query parser
-5. execution engine
-6. transaction manager
-7. integration tests + CLI polish
+1. B+ tree indexing
+2. storage layer + persistence format
+3. query parser
+4. execution engine
+5. transaction manager
+6. integration tests + CLI polish
